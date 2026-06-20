@@ -1,0 +1,15 @@
+{
+  "name": "rtg-monitor-server",
+  "version": "1.0.0",
+  "description": "RTG Monitoring Microservice - gRPC Backend",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node src/index.js"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.10.0",
+    "@grpc/proto-loader": "^0.7.10",
+    "long": "^5.2.3"
+  }
+}

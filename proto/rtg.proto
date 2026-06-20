@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package rtgmonitor;
+
+service RTGMonitorService {
+  rpc StreamRTGData(StreamRequest) returns (stream RTGDataPoint);
+  rpc StreamThermocoupleWave(StreamRequest) returns (stream ThermocoupleSample);
+  rpc GetRTGSnapshot(SnapshotRequest) returns (RTGSnapshot);
+}
+
+message StreamRequest {
+  string device_id = 1;
+  uint32 sample_rate_hz = 2;
+}
+
+message SnapshotRequest {
+  string device_id = 1;
+}
+
+message RTGDataPoint {
+  uint64 timestamp_ns = 1;
+  string device_id = 2;
+  double hot_side_temp_c = 3;
+  double cold_side_temp_c = 4;
+  double thermocouple_voltage_mv = 5;
+  double pu238_thermal_power_w = 6;
+  double system_voltage_v = 7;
+  double system_current_a = 8;
+  double heat_sink_temp_c = 9;
+  HealthStatus health = 10;
+  uint32 sequence = 11;
+}
+
+message ThermocoupleSample {
+  uint64 timestamp_ns = 1;
+  double voltage_mv = 2;
+  uint32 sequence = 3;
+}
+
+message RTGSnapshot {
+  uint64 timestamp_ns = 1;
+  string device_id = 2;
+  double hot_side_temp_c = 3;
+  double cold_side_temp_c = 4;
+  double thermocouple_voltage_mv = 5;
+  double pu238_thermal_power_w = 6;
+  double pu238_mass_g = 7;
+  double half_life_years = 8;
+  double efficiency_percent = 9;
+  double uptime_hours = 10;
+  HealthStatus health = 11;
+  repeated Alert alerts = 12;
+}
+
+enum HealthStatus {
+  HEALTH_UNKNOWN = 0;
+  HEALTH_NOMINAL = 1;
+  HEALTH_WARNING = 2;
+  HEALTH_CRITICAL = 3;
+  HEALTH_FAULT = 4;
+}
+
+message Alert {
+  uint64 timestamp_ns = 1;
+  string code = 2;
+  string message = 3;
+  AlertLevel level = 4;
+}
+
+enum AlertLevel {
+  ALERT_INFO = 0;
+  ALERT_WARNING = 1;
+  ALERT_ERROR = 2;
+  ALERT_FATAL = 3;
+}
