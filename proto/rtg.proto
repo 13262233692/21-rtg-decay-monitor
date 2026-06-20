@@ -7,6 +7,8 @@ service RTGMonitorService {
   rpc StreamThermocoupleWave(StreamRequest) returns (stream ThermocoupleSample);
   rpc GetRTGSnapshot(SnapshotRequest) returns (RTGSnapshot);
   rpc StreamHistoricalBurst(HistoricalRequest) returns (stream HistoricalChunk);
+  rpc StreamRTGLifetimeProjection(LifetimeProjectionRequest) returns (stream LifetimeProjectionPoint);
+  rpc GetLifetimeInverse(LifetimeInverseRequest) returns (LifetimeInverseResult);
 }
 
 message StreamRequest {
@@ -126,4 +128,59 @@ message ConnectionConfig {
   double backoff_multiplier = 5;
   double jitter_factor = 6;
   uint32 max_retries = 7;
+}
+
+message LifetimeProjectionRequest {
+  string device_id = 1;
+  uint32 projection_years = 2;
+  uint32 data_points = 3;
+  bool include_confidence_band = 4;
+}
+
+message LifetimeProjectionPoint {
+  uint64 timestamp_ns = 1;
+  double years_from_now = 2;
+  double pu238_thermal_power_w = 3;
+  double pu238_mass_remaining_g = 4;
+  double hot_side_temp_c = 5;
+  double cold_side_temp_c = 6;
+  double thermocouple_voltage_mv = 7;
+  double efficiency_percent = 8;
+  double electrical_power_w = 9;
+  double max_payload_power_w = 10;
+  double decay_ratio = 11;
+  double confidence_lower = 12;
+  double confidence_upper = 13;
+  ProjectionHealthStatus health_status = 14;
+}
+
+message LifetimeInverseRequest {
+  string device_id = 1;
+  double target_years_from_now = 2;
+}
+
+message LifetimeInverseResult {
+  uint64 target_timestamp_ns = 1;
+  double years_from_now = 2;
+  double pu238_thermal_power_w = 3;
+  double power_decay_percent = 4;
+  double hot_side_temp_c = 5;
+  double hot_side_temp_drop_c = 6;
+  double cold_side_temp_c = 7;
+  double thermocouple_voltage_mv = 8;
+  double efficiency_percent = 9;
+  double electrical_power_w = 10;
+  double max_payload_power_w = 11;
+  double remaining_half_lives = 12;
+  double pu238_mass_remaining_g = 13;
+  double pu238_mass_consumed_g = 14;
+  ProjectionHealthStatus health_status = 15;
+  repeated string operational_notes = 16;
+}
+
+enum ProjectionHealthStatus {
+  PROJECTION_NOMINAL = 0;
+  PROJECTION_WARNING = 1;
+  PROJECTION_CRITICAL = 2;
+  PROJECTION_END_OF_LIFE = 3;
 }

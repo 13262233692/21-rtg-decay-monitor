@@ -309,6 +309,17 @@
           </div>
         </div>
       </div>
+
+      <div style="grid-column: span 12; grid-row: span 1; min-height: 520px;">
+        <LifetimeProjection
+          :grpc-client="client"
+          :device-id="'RTG-GENERAL-PURPOSE-001'"
+          :projection-years="30"
+          :data-points="180"
+          @data-loaded="onLifetimeDataLoaded"
+          @ruler-changed="onLifetimeRulerChanged"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -317,6 +328,7 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount, onUpdated } from 'vue';
 import PowerDisplay from './components/PowerDisplay.vue';
 import WaveformChart from './components/WaveformChart.vue';
+import LifetimeProjection from './components/LifetimeProjection.vue';
 import { RTGGrpcWebClient } from './grpcClient.js';
 
 const deviceId = ref('RTG-52544701');
@@ -582,6 +594,14 @@ onMounted(async () => {
     }
   }, 3000);
 });
+
+function onLifetimeDataLoaded(data) {
+  console.log('[LIFE] Projection data loaded:', data.length, 'points');
+}
+
+function onLifetimeRulerChanged(event) {
+  console.log('[LIFE] Ruler changed:', event.year, 'years');
+}
 
 onBeforeUnmount(() => {
   if (utcTimer) clearInterval(utcTimer);

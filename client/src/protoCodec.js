@@ -253,4 +253,92 @@ export class ProtoCodec {
     }
     return (crc ^ 0xFFFFFFFF) >>> 0;
   }
+
+  static encodeLifetimeProjectionRequest(p) {
+    const tmp = new Uint8Array(256);
+    let n = 0;
+    if (p.device_id != null) { n += this.encodeTag(1, 2, tmp, n); n += this.encodeString(p.device_id, tmp, n); }
+    if (p.projection_years != null) { n += this.encodeTag(2, 0, tmp, n); n += this.encodeVarint(BigInt(p.projection_years), tmp, n); }
+    if (p.data_points != null) { n += this.encodeTag(3, 0, tmp, n); n += this.encodeVarint(BigInt(p.data_points), tmp, n); }
+    if (p.include_confidence_band != null) { n += this.encodeTag(4, 0, tmp, n); n += this.encodeVarint(BigInt(p.include_confidence_band ? 1 : 0), tmp, n); }
+    return tmp.subarray(0, n);
+  }
+
+  static decodeLifetimeProjectionPoint(buf) {
+    const r = {};
+    let o = 0;
+    while (o < buf.length) {
+      const tag = this.decodeVarint(buf, o); o += tag.length;
+      const field = Number(tag.value >> 3n);
+      const wire = Number(tag.value & 7n);
+      switch (field) {
+        case 1: { const v = this.decodeVarint(buf, o); r.timestamp_ns = v.value.toString(); o += v.length; break; }
+        case 2: { const v = this.decodeDouble(buf, o); r.years_from_now = v.value; o += v.length; break; }
+        case 3: { const v = this.decodeDouble(buf, o); r.pu238_thermal_power_w = v.value; o += v.length; break; }
+        case 4: { const v = this.decodeDouble(buf, o); r.pu238_mass_remaining_g = v.value; o += v.length; break; }
+        case 5: { const v = this.decodeDouble(buf, o); r.hot_side_temp_c = v.value; o += v.length; break; }
+        case 6: { const v = this.decodeDouble(buf, o); r.cold_side_temp_c = v.value; o += v.length; break; }
+        case 7: { const v = this.decodeDouble(buf, o); r.thermocouple_voltage_mv = v.value; o += v.length; break; }
+        case 8: { const v = this.decodeDouble(buf, o); r.efficiency_percent = v.value; o += v.length; break; }
+        case 9: { const v = this.decodeDouble(buf, o); r.electrical_power_w = v.value; o += v.length; break; }
+        case 10: { const v = this.decodeDouble(buf, o); r.max_payload_power_w = v.value; o += v.length; break; }
+        case 11: { const v = this.decodeDouble(buf, o); r.decay_ratio = v.value; o += v.length; break; }
+        case 12: { const v = this.decodeDouble(buf, o); r.confidence_lower = v.value; o += v.length; break; }
+        case 13: { const v = this.decodeDouble(buf, o); r.confidence_upper = v.value; o += v.length; break; }
+        case 14: { const v = this.decodeVarint(buf, o); r.health_status = ['PROJECTION_NOMINAL','PROJECTION_WARNING','PROJECTION_CRITICAL','PROJECTION_END_OF_LIFE'][Number(v.value)] ?? 'PROJECTION_NOMINAL'; o += v.length; break; }
+        default: {
+          if (wire === 0) { const v = this.decodeVarint(buf, o); o += v.length; }
+          else if (wire === 2) { const l = this.decodeVarint(buf, o); o += l.length + Number(l.value); }
+          else if (wire === 1) o += 8;
+          else if (wire === 5) o += 4;
+          else o = buf.length;
+        }
+      }
+    }
+    return r;
+  }
+
+  static encodeLifetimeInverseRequest(p) {
+    const tmp = new Uint8Array(256);
+    let n = 0;
+    if (p.device_id != null) { n += this.encodeTag(1, 2, tmp, n); n += this.encodeString(p.device_id, tmp, n); }
+    if (p.target_years_from_now != null) { n += this.encodeTag(2, 1, tmp, n); n += this.encodeDouble(p.target_years_from_now, tmp, n); }
+    return tmp.subarray(0, n);
+  }
+
+  static decodeLifetimeInverseResult(buf) {
+    const r = { operational_notes: [] };
+    let o = 0;
+    while (o < buf.length) {
+      const tag = this.decodeVarint(buf, o); o += tag.length;
+      const field = Number(tag.value >> 3n);
+      const wire = Number(tag.value & 7n);
+      switch (field) {
+        case 1: { const v = this.decodeVarint(buf, o); r.target_timestamp_ns = v.value.toString(); o += v.length; break; }
+        case 2: { const v = this.decodeDouble(buf, o); r.years_from_now = v.value; o += v.length; break; }
+        case 3: { const v = this.decodeDouble(buf, o); r.pu238_thermal_power_w = v.value; o += v.length; break; }
+        case 4: { const v = this.decodeDouble(buf, o); r.power_decay_percent = v.value; o += v.length; break; }
+        case 5: { const v = this.decodeDouble(buf, o); r.hot_side_temp_c = v.value; o += v.length; break; }
+        case 6: { const v = this.decodeDouble(buf, o); r.hot_side_temp_drop_c = v.value; o += v.length; break; }
+        case 7: { const v = this.decodeDouble(buf, o); r.cold_side_temp_c = v.value; o += v.length; break; }
+        case 8: { const v = this.decodeDouble(buf, o); r.thermocouple_voltage_mv = v.value; o += v.length; break; }
+        case 9: { const v = this.decodeDouble(buf, o); r.efficiency_percent = v.value; o += v.length; break; }
+        case 10: { const v = this.decodeDouble(buf, o); r.electrical_power_w = v.value; o += v.length; break; }
+        case 11: { const v = this.decodeDouble(buf, o); r.max_payload_power_w = v.value; o += v.length; break; }
+        case 12: { const v = this.decodeDouble(buf, o); r.remaining_half_lives = v.value; o += v.length; break; }
+        case 13: { const v = this.decodeDouble(buf, o); r.pu238_mass_remaining_g = v.value; o += v.length; break; }
+        case 14: { const v = this.decodeDouble(buf, o); r.pu238_mass_consumed_g = v.value; o += v.length; break; }
+        case 15: { const v = this.decodeVarint(buf, o); r.health_status = ['PROJECTION_NOMINAL','PROJECTION_WARNING','PROJECTION_CRITICAL','PROJECTION_END_OF_LIFE'][Number(v.value)] ?? 'PROJECTION_NOMINAL'; o += v.length; break; }
+        case 16: { const v = this.decodeString(buf, o); r.operational_notes.push(v.value); o += v.length; break; }
+        default: {
+          if (wire === 0) { const v = this.decodeVarint(buf, o); o += v.length; }
+          else if (wire === 2) { const l = this.decodeVarint(buf, o); o += l.length + Number(l.value); }
+          else if (wire === 1) o += 8;
+          else if (wire === 5) o += 4;
+          else o = buf.length;
+        }
+      }
+    }
+    return r;
+  }
 }

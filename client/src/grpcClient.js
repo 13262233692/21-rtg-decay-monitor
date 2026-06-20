@@ -531,6 +531,25 @@ export class RTGGrpcWebClient {
     );
   }
 
+  streamRTGLifetimeProjection(request, onMsg, onEnd) {
+    return this.serverStream(
+      'StreamRTGLifetimeProjection',
+      request,
+      ProtoCodec.encodeLifetimeProjectionRequest.bind(ProtoCodec),
+      ProtoCodec.decodeLifetimeProjectionPoint.bind(ProtoCodec),
+      onMsg, onEnd
+    );
+  }
+
+  async getLifetimeInverse(deviceId, targetYearsFromNow) {
+    return this.unary(
+      'GetLifetimeInverse',
+      { device_id: deviceId, target_years_from_now: targetYearsFromNow },
+      ProtoCodec.encodeLifetimeInverseRequest.bind(ProtoCodec),
+      ProtoCodec.decodeLifetimeInverseResult.bind(ProtoCodec)
+    );
+  }
+
   closeAll() {
     this.streamAbortControllers.forEach(c => { try { c.abort(); } catch {} });
     this.streamAbortControllers.clear();

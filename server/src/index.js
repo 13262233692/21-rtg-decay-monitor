@@ -5,6 +5,7 @@ const { BinaryProtocolParser } = require('./binaryParser');
 const { RTGHardwareSimulator } = require('./rtgSimulator');
 const { ConnectionGuard } = require('./connectionGuard');
 const { HistoricalChunkEngine } = require('./historicalChunker');
+const { LifetimeProjectionEngine } = require('./lifetimeProjectionEngine');
 
 const PROTO_PATH = path.join(__dirname, '..', '..', 'proto', 'rtg.proto');
 const GRPC_PORT = process.env.GRPC_PORT || '50051';
@@ -16,9 +17,11 @@ class RTGMonitorServer {
     this.parser = new BinaryProtocolParser();
     this.connectionGuard = new ConnectionGuard();
     this.chunkEngine = new HistoricalChunkEngine(this.simulator, this.parser);
+    this.lifetimeEngine = new LifetimeProjectionEngine(this.simulator);
     this.clients = new Map();
     this.waveClients = new Map();
     this.historicalSessions = new Map();
+    this.lifetimeSessions = new Map();
   }
 
   _loadProto() {
@@ -222,6 +225,109 @@ class RTGMonitorServer {
     }
   }
 
+  async StreamRTGLifetimeProjection(call) {
+    const peer = call.getPeer();
+    const guard = this.connectionGuard.allowIncoming(peer, 'StreamRTGLifetimeProjection');
+    if (!guard.allowed) {
+      console.log(`[LIFE] Rejected StreamRTGLifetimeProjection from ${peer}: ${guard.reason}`);
+      call.emit('error', {
+        code: grpc.status.RESOURCE_EXHAUSTED,
+        details: `${guard.reason}; backoff=${Math.ceil(guard.retryBackoff)}ms`
+      });
+      this.connectionGuard.reportFailure();
+      return;
+    }
+
+    const request = call.request;
+    console.log(`[LIFE] New lifetime projection request from ${peer}:`, {
+      deviceId: request.device_id,
+      projectionYears: request.projection_years,
+      dataPoints: request.data_points
+    });
+
+    try {
+      const sessionId = Symbol.for(`life-${Date.now()}-${Math.random()}`);
+      this.lifetimeSessions.set(sessionId, { call, startTime: Date.now() });
+      let cancelled = false;
+
+      call.on('cancelled', () => {
+        console.log('[LIFE] Lifetime projection cancelled by client');
+        cancelled = true;
+      });
+
+      const projectionYears = request.projection_years || 30;
+      const dataPoints = request.data_points || 180;
+      const includeConfidence = request.include_confidence_band || false;
+
+      for (const point of this.lifetimeEngine.generateProjection(
+        projectionYears, dataPoints, includeConfidence, request.device_id
+      )) {
+        if (cancelled) break;
+        try {
+          call.write(point);
+        } catch (e) {
+          console.log('[LIFE] Write error:', e.message);
+          break;
+        }
+        await new Promise(r => setImmediate(r));
+      }
+
+      if (!cancelled) {
+        call.end();
+      }
+      this.lifetimeSessions.delete(sessionId);
+      this.connectionGuard.release(guard.streamId, peer);
+      this.connectionGuard.reportSuccess();
+    } catch (e) {
+      console.error('[LIFE] Stream error:', e);
+      try {
+        call.emit('error', {
+          code: grpc.status.INTERNAL,
+          details: e.message
+        });
+      } catch {}
+      this.connectionGuard.release(guard.streamId, peer);
+      this.connectionGuard.reportFailure();
+    }
+  }
+
+  GetLifetimeInverse(call, callback) {
+    const peer = call.getPeer();
+    const guard = this.connectionGuard.allowIncoming(peer, 'GetLifetimeInverse');
+    if (!guard.allowed) {
+      callback({
+        code: grpc.status.RESOURCE_EXHAUSTED,
+        details: `${guard.reason}; backoff=${Math.ceil(guard.retryBackoff)}ms`
+      });
+      this.connectionGuard.reportFailure();
+      return;
+    }
+
+    const request = call.request;
+    console.log(`[LIFE] GetLifetimeInverse from ${peer}:`, {
+      deviceId: request.device_id,
+      targetYears: request.target_years_from_now
+    });
+
+    try {
+      const result = this.lifetimeEngine.calculateInverse(
+        request.target_years_from_now,
+        request.device_id
+      );
+      callback(null, result);
+      this.connectionGuard.release(guard.streamId, peer);
+      this.connectionGuard.reportSuccess();
+    } catch (e) {
+      console.error('[LIFE] GetLifetimeInverse error:', e);
+      callback({
+        code: grpc.status.INTERNAL,
+        details: e.message
+      });
+      this.connectionGuard.release(guard.streamId, peer);
+      this.connectionGuard.reportFailure();
+    }
+  }
+
   _broadcastToClients() {
     const bin = this.simulator.generateBinaryPacket();
     const pkts = this.parser.feed(bin);
@@ -266,7 +372,9 @@ class RTGMonitorServer {
       StreamRTGData: this.StreamRTGData.bind(this),
       StreamThermocoupleWave: this.StreamThermocoupleWave.bind(this),
       GetRTGSnapshot: this.GetRTGSnapshot.bind(this),
-      StreamHistoricalBurst: this.StreamHistoricalBurst.bind(this)
+      StreamHistoricalBurst: this.StreamHistoricalBurst.bind(this),
+      StreamRTGLifetimeProjection: this.StreamRTGLifetimeProjection.bind(this),
+      GetLifetimeInverse: this.GetLifetimeInverse.bind(this)
     });
 
     server.bindAsync(`0.0.0.0:${GRPC_PORT}`, grpc.ServerCredentials.createInsecure(), (err, port) => {
