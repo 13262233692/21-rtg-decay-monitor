@@ -6,6 +6,7 @@ service RTGMonitorService {
   rpc StreamRTGData(StreamRequest) returns (stream RTGDataPoint);
   rpc StreamThermocoupleWave(StreamRequest) returns (stream ThermocoupleSample);
   rpc GetRTGSnapshot(SnapshotRequest) returns (RTGSnapshot);
+  rpc StreamHistoricalBurst(HistoricalRequest) returns (stream HistoricalChunk);
 }
 
 message StreamRequest {
@@ -72,4 +73,57 @@ enum AlertLevel {
   ALERT_WARNING = 1;
   ALERT_ERROR = 2;
   ALERT_FATAL = 3;
+}
+
+message HistoricalRequest {
+  string device_id = 1;
+  uint64 start_timestamp_ns = 2;
+  uint64 end_timestamp_ns = 3;
+  uint32 chunk_size_bytes = 4;
+  uint32 sample_rate_hz = 5;
+  bool include_thermocouple = 6;
+  bool include_power = 7;
+  bool compressed = 8;
+}
+
+message HistoricalChunk {
+  uint64 session_id = 1;
+  uint32 chunk_index = 2;
+  uint32 total_chunks = 3;
+  uint32 payload_bytes = 4;
+  uint32 crc32 = 5;
+  uint64 start_timestamp_ns = 6;
+  uint64 end_timestamp_ns = 7;
+  uint32 sample_count = 8;
+  bytes payload = 9;
+  ChunkType chunk_type = 10;
+  repeated ChunkStatus status = 11;
+  string error_message = 12;
+}
+
+enum ChunkType {
+  CHUNK_DATA = 0;
+  CHUNK_METADATA = 1;
+  CHUNK_HEARTBEAT = 2;
+  CHUNK_FINAL = 3;
+  CHUNK_ERROR = 4;
+  CHUNK_REJECT = 5;
+}
+
+message ChunkStatus {
+  uint32 expected_chunks = 1;
+  uint32 received_chunks = 2;
+  uint64 bytes_transferred = 3;
+  double throughput_mbps = 4;
+  uint32 retry_count = 5;
+}
+
+message ConnectionConfig {
+  uint32 max_message_size = 1;
+  uint32 max_concurrent_streams = 2;
+  uint32 initial_backoff_ms = 3;
+  uint32 max_backoff_ms = 4;
+  double backoff_multiplier = 5;
+  double jitter_factor = 6;
+  uint32 max_retries = 7;
 }

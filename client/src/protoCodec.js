@@ -187,4 +187,70 @@ export class ProtoCodec {
     }
     return r;
   }
+
+  static encodeHistoricalRequest(p) {
+    const tmp = new Uint8Array(256);
+    let n = 0;
+    if (p.device_id != null) { n += this.encodeTag(1, 2, tmp, n); n += this.encodeString(p.device_id, tmp, n); }
+    if (p.start_timestamp_ns != null) { n += this.encodeTag(2, 0, tmp, n); n += this.encodeVarint(BigInt(p.start_timestamp_ns), tmp, n); }
+    if (p.end_timestamp_ns != null) { n += this.encodeTag(3, 0, tmp, n); n += this.encodeVarint(BigInt(p.end_timestamp_ns), tmp, n); }
+    if (p.chunk_size_bytes != null) { n += this.encodeTag(4, 0, tmp, n); n += this.encodeVarint(BigInt(p.chunk_size_bytes), tmp, n); }
+    if (p.sample_rate_hz != null) { n += this.encodeTag(5, 0, tmp, n); n += this.encodeVarint(BigInt(p.sample_rate_hz), tmp, n); }
+    if (p.include_thermocouple != null) { n += this.encodeTag(6, 0, tmp, n); n += this.encodeVarint(BigInt(p.include_thermocouple ? 1 : 0), tmp, n); }
+    if (p.include_power != null) { n += this.encodeTag(7, 0, tmp, n); n += this.encodeVarint(BigInt(p.include_power ? 1 : 0), tmp, n); }
+    return tmp.subarray(0, n);
+  }
+
+  static decodeHistoricalChunk(buf) {
+    const r = { status: [], payload: new Uint8Array(0) };
+    let o = 0;
+    while (o < buf.length) {
+      const tag = this.decodeVarint(buf, o); o += tag.length;
+      const field = Number(tag.value >> 3n);
+      const wire = Number(tag.value & 7n);
+      switch (field) {
+        case 1: { const v = this.decodeVarint(buf, o); r.session_id = v.value.toString(); o += v.length; break; }
+        case 2: { const v = this.decodeVarint(buf, o); r.chunk_index = Number(v.value); o += v.length; break; }
+        case 3: { const v = this.decodeVarint(buf, o); r.total_chunks = Number(v.value); o += v.length; break; }
+        case 4: { const v = this.decodeVarint(buf, o); r.payload_bytes = Number(v.value); o += v.length; break; }
+        case 5: { const v = this.decodeVarint(buf, o); r.crc32 = Number(v.value); o += v.length; break; }
+        case 6: { const v = this.decodeVarint(buf, o); r.start_timestamp_ns = v.value.toString(); o += v.length; break; }
+        case 7: { const v = this.decodeVarint(buf, o); r.end_timestamp_ns = v.value.toString(); o += v.length; break; }
+        case 8: { const v = this.decodeVarint(buf, o); r.sample_count = Number(v.value); o += v.length; break; }
+        case 9: {
+          if (wire === 2) {
+            const l = this.decodeVarint(buf, o); o += l.length;
+            const len = Number(l.value);
+            r.payload = new Uint8Array(buf.subarray(o, o + len));
+            o += len;
+          } else o += 4;
+          break;
+        }
+        case 10: { const v = this.decodeVarint(buf, o); r.chunk_type = ['CHUNK_DATA','CHUNK_METADATA','CHUNK_HEARTBEAT','CHUNK_FINAL','CHUNK_ERROR','CHUNK_REJECT'][Number(v.value)] ?? 'CHUNK_DATA'; o += v.length; break; }
+        case 12: { const v = this.decodeString(buf, o); r.error_message = v.value; o += v.length; break; }
+        default: {
+          if (wire === 0) { const v = this.decodeVarint(buf, o); o += v.length; }
+          else if (wire === 2) { const l = this.decodeVarint(buf, o); o += l.length + Number(l.value); }
+          else if (wire === 1) o += 8;
+          else if (wire === 5) o += 4;
+          else o = buf.length;
+        }
+      }
+    }
+    return r;
+  }
+
+  static crc32(buf) {
+    let crc = 0xFFFFFFFF;
+    const table = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let j = 0; j < 8; j++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      table[i] = c >>> 0;
+    }
+    for (let i = 0; i < buf.length; i++) {
+      crc = table[(crc ^ buf[i]) & 0xFF] ^ (crc >>> 8);
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
 }
